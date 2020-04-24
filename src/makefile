@@ -1,7 +1,7 @@
 .PHONY: clean
 
 CC     := gcc
-CFLAGS := -O3
+CFLAGS := -Wall -Wextra -Werror -pedantic -O3
 SRC    := bracknt.br
 CSRC   := $(patsubst %.br, %.c, $(wildcard *.br))
 TARGET := bracknt
