@@ -1,4 +1,5 @@
 // @Compile make
+// @Compile sudo make clean install
 
 #include "scl.h"
 #include <ctype.h>
