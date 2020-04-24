@@ -1,0 +1,141 @@
+// @Compile make
+
+#include "scl.h"
+#include <ctype.h>
+
+typedef Array(char, 127) long_string_t;
+typedef Array(u32, 15) indent_stack_t;
+typedef Array(long_string_t, 1) arr_lines_t;
+
+struct text_file
+  string content;
+  const char *path;
+  bool error;
+;
+
+struct text_file_lines
+  arr_lines_t lines;
+  const char *path;
+  bool error;
+;
+
+struct text_file_lines read_text_file_lines(const char *path)
+  struct text_file_lines file = {.path = path};
+  arr_init(file.lines, 0);
+  FILE *fp = fopen(path, "r");
+  if !fp
+    file.error = true;
+    return file;
+  char *line = NULL;
+  size_t len = 0;
+  ssize_t read;
+  while (read = getline(&line, &len, fp)) != -1
+    long_string_t s = {0};
+    arr_init(s, read - 1);
+    memcpy(arr_data(s), line, read - 1);
+    arr_push(file.lines, s);
+  free(line);
+  fclose(fp);
+  return file;
+
+void free_text_file(struct text_file file)
+  arr_free(file.content);
+
+void free_text_file_lines(struct text_file_lines file)
+  repeat (arr_len(file.lines)) 
+    arr_free(arr_get(file.lines, i));
+  arr_free(file.lines);
+
+u32 count_spaces(long_string_t s)
+  repeat (arr_len(s))
+    if (!isspace(arr_get(s, i)))
+      return i;
+  return 0;
+
+bool only_whitespace(long_string_t s)
+  repeat (arr_len(s))
+    if (!isspace(arr_get(s, i)))
+      return false;
+  return true;
+
+void close_scope(arr_lines_t *lines, u32 index, u32 indent)
+  long_string_t s = {0};
+  str_init(s, " ");
+  arr_repeat(s, indent);
+  string brace = {0};
+  str_init(brace, "}");
+  arr_concat(s, brace);
+  arr_insert(*lines, index, s);
+
+void add_parens(long_string_t *s, u32 start)
+  char *ptr = strrchr(arr_cstr(*s), '{');
+  if ptr
+    arr_insert(*s, ptr - arr_data(*s), ')');
+    arr_insert(*s, start, '(');
+
+int main(int argc, char const *argv[])
+  if argc != 2
+    printf("Usage: bracknt <file>\n");
+    return 1;
+
+  struct text_file_lines file = read_text_file_lines(argv[1]);
+  if file.error
+    printf("Failed to read text file: \"%s\".\n", file.path);
+    return 1;
+
+  u32 indent, prev_indent = 0;
+  long_string_t *line, *prev_line = NULL;
+  indent_stack_t indent_stack = {0};
+  arr_init(indent_stack, 0);
+
+  for size_t i = 0; i < arr_len(file.lines); ++i
+    line = &arr_get(file.lines, i);
+    if only_whitespace(*line)
+      continue;
+
+    indent = count_spaces(*line);
+    if indent > prev_indent
+      string brace = {0};
+      str_init(brace, " {");
+      arr_concat(*prev_line, brace);
+      const char *keywords[] = {"if", "for", "while", "switch"};
+      repeat (sizeof(keywords) / sizeof(keywords[0]))
+        char *ptr = strstr(arr_cstr(*prev_line), keywords[i]);
+        if ptr
+          add_parens(prev_line, ptr - arr_data(*prev_line) + strlen(keywords[i]));
+      arr_push(indent_stack, prev_indent);
+
+    else if indent < prev_indent
+      const char keyword[] = "while";
+      char *kw_ptr = strstr(arr_cstr(*line), keyword);
+      if kw_ptr
+        char *ptr = strrchr(arr_cstr(*line), ';');
+        if ptr
+          arr_insert(*line, ptr - arr_data(*line), ')');
+          arr_insert(*line, kw_ptr - arr_data(*line) + sizeof(keyword) - 1, '(');
+
+      u32 count = 0;
+      do
+        if arr_len(indent_stack) == 0
+          break;
+
+        count = arr_pop(indent_stack);
+        close_scope(&file.lines, i, count);
+        ++i;
+        line = &arr_get(file.lines, i);
+      while count > indent;
+
+    prev_indent = indent;
+    prev_line = line;
+
+  u32 i = arr_len(file.lines);
+  while arr_len(indent_stack)
+    close_scope(&file.lines, i++, arr_pop(indent_stack));
+
+  arr_free(indent_stack);
+  repeat (arr_len(file.lines))
+    if !only_whitespace(arr_get(file.lines, i))
+      puts(arr_cstr(arr_get(file.lines, i)));
+
+  free_text_file_lines(file);
+  return 0;
