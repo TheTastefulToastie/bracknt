@@ -1,4 +1,4 @@
-// @Compile make
+// @Compile make test
 // @Compile sudo make clean install
 
 #include "scl.h"
@@ -43,19 +43,19 @@ void free_text_file(struct text_file file)
   arr_free(file.content);
 
 void free_text_file_lines(struct text_file_lines file)
-  repeat (arr_len(file.lines)) 
-    arr_free(arr_get(file.lines, i));
+  foreach long_string_t in file.lines
+    arr_free(*it);
   arr_free(file.lines);
 
 u32 count_spaces(long_string_t s)
-  repeat (arr_len(s))
-    if (!isspace(arr_get(s, i)))
-      return i;
+  foreach char in s
+    if !isspace(*it)
+      return it_index;
   return 0;
 
 bool only_whitespace(long_string_t s)
-  repeat (arr_len(s))
-    if (!isspace(arr_get(s, i)))
+  foreach char in s
+    if !isspace(*it)
       return false;
   return true;
 
@@ -99,7 +99,7 @@ int main(int argc, char const *argv[])
       string brace = {0};
       str_init(brace, " {");
       arr_concat(*prev_line, brace);
-      const char *keywords[] = {"if", "for", "while", "switch"};
+      const char *keywords[] = {"if ", "for ", "foreach ", "while ", "switch ","if(", "for(", "foreach(", "while(", "switch("};
       repeat (sizeof(keywords) / sizeof(keywords[0]))
         char *ptr = strstr(arr_cstr(*prev_line), keywords[i]);
         if ptr
@@ -134,9 +134,10 @@ int main(int argc, char const *argv[])
     close_scope(&file.lines, i++, arr_pop(indent_stack));
 
   arr_free(indent_stack);
-  repeat (arr_len(file.lines))
-    if !only_whitespace(arr_get(file.lines, i))
-      puts(arr_cstr(arr_get(file.lines, i)));
+
+  foreach long_string_t in file.lines
+    if !only_whitespace(*it)
+      puts(arr_cstr(*it));
 
   free_text_file_lines(file);
   return 0;
